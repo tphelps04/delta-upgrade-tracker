@@ -1,0 +1,66 @@
+name: Delta Upgrade Tracker
+
+on:
+  schedule:
+    - cron: "0 */4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Restore prior state
+        run: |
+          [ -f cloud_state.json ] && cp cloud_state.json state.json || true
+          mkdir -p logs
+          [ -f cloud_price_history.jsonl ] && cp cloud_price_history.jsonl logs/price_history.jsonl || true
+
+      - name: Write .env
+        run: |
+          cat > .env <<EOF
+          DELTA_CONFIRMATION=${{ secrets.DELTA_CONFIRMATION }}
+          DELTA_FIRST_NAME=${{ secrets.DELTA_FIRST_NAME }}
+          DELTA_LAST_NAME=${{ secrets.DELTA_LAST_NAME }}
+          OUTBOUND_FLIGHT_NUMBER=${{ secrets.OUTBOUND_FLIGHT_NUMBER }}
+          OUTBOUND_FLIGHT_DATE=${{ secrets.OUTBOUND_FLIGHT_DATE }}
+          OUTBOUND_THRESHOLD_DELTA_ONE=${{ secrets.OUTBOUND_THRESHOLD_DELTA_ONE }}
+          OUTBOUND_THRESHOLD_PREMIUM=${{ secrets.OUTBOUND_THRESHOLD_PREMIUM }}
+          RETURN_FLIGHT_NUMBER=${{ secrets.RETURN_FLIGHT_NUMBER }}
+          RETURN_FLIGHT_DATE=${{ secrets.RETURN_FLIGHT_DATE }}
+          RETURN_THRESHOLD_DELTA_ONE=${{ secrets.RETURN_THRESHOLD_DELTA_ONE }}
+          RETURN_THRESHOLD_PREMIUM=${{ secrets.RETURN_THRESHOLD_PREMIUM }}
+          NTFY_SERVER=https://ntfy.sh
+          NTFY_TOPIC=${{ secrets.NTFY_TOPIC }}
+          HEADLESS=true
+          STATE_FILE=state.json
+          LOG_FILE=logs/price_history.jsonl
+          STOP_AT=${{ secrets.STOP_AT }}
+          EOF
+
+      - name: Run tracker
+        run: python3 delta_tracker.py
+
+      - name: Save state back to repo
+        if: always()
+        run: |
+          [ -f state.json ] && cp state.json cloud_state.json || true
+          [ -f logs/price_history.jsonl ] && cp logs/price_history.jsonl cloud_price_history.jsonl || true
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add cloud_state.json cloud_price_history.jsonl 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "Update tracker state [skip ci]"
+          git push || true

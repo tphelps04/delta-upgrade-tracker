@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tiffany.delta-upgrade-tracker</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/tiffanyphelps/delta-upgrade-tracker/run.sh</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>14400</integer>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/tiffanyphelps/delta-upgrade-tracker/logs/launchd.out.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/tiffanyphelps/delta-upgrade-tracker/logs/launchd.err.log</string>
+</dict>
+</plist>

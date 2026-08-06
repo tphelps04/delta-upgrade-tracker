@@ -154,7 +154,14 @@ def save_debug_snapshot(page: Page, label: str) -> None:
 def find_trip(page: Page, config: Config) -> bool:
     """Navigate delta.com's public trip lookup. Returns True if the trip
     details page loaded successfully."""
-    page.goto("https://www.delta.com/mytrips/find", wait_until="domcontentloaded", timeout=45000)
+    try:
+        page.goto("https://www.delta.com/mytrips/find", wait_until="domcontentloaded", timeout=45000)
+    except Exception as exc:
+        # Network failure (DNS, connection refused, etc.) — treat like a
+        # block so the caller falls back to a manual-check alert instead
+        # of crashing the whole run.
+        print(f"Failed to reach delta.com: {exc}", file=sys.stderr)
+        return False
 
     if is_blocked(page):
         return False

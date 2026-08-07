@@ -1,87 +1,61 @@
 # Delta Upgrade Tracker
 
-Watches the cash upgrade price for both legs of a round trip on delta.com
-and pushes a notification when either drops below your threshold:
+Tracks the cash upgrade price for both legs of a round trip and pushes a
+notification when either drops below your threshold:
 
 - **Outbound**: DL0979, LAX→NYC, 8/16/2026 — Delta One < $800, Premium Select < $500
 - **Return**: DL0752, 8/21/2026 — Delta One < $800, Premium Select < $500
 
-## How it works
-
-Uses delta.com's public "Find Your Trip" lookup (confirmation number + name
-— no account password involved) to open your reservation, then opens the
-seat/upgrade screen for each flight leg in turn and reads the prices shown.
-Every check is logged to `logs/price_history.jsonl` (tagged by leg) so you
-can see price movement over time. Alerts go out via
-[ntfy.sh](https://ntfy.sh) push notifications — no email/password involved.
-
-Runs on a schedule via macOS `launchd` and automatically stops itself
-(unloads its own scheduled job) after `STOP_AT` in `.env`.
-
-## Setup
-
-1. **Configure.** `.env` already has your trip details, thresholds, and
-   ntfy topic filled in. Edit it directly if anything changes.
-
-2. **Verify with a visible test run** any time you change the scraping
-   logic (set `HEADLESS=false` in `.env` first):
-
-   ```bash
-   cd ~/delta-upgrade-tracker
-   .venv/bin/python3 delta_tracker.py
-   ```
-
-   If it can't find a form field or can't tell the two flight legs apart,
-   it saves a screenshot + HTML snapshot to `logs/debug/` — that's the
-   place to look (or send to me) to fix selectors.
-
-3. Set `HEADLESS=true` before relying on the scheduled run (no visible
-   browser window, required for unattended background runs).
-
-## Scheduling (launchd)
+## How to check prices (use this — see note below)
 
 ```bash
-cp com.tiffany.delta-upgrade-tracker.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.tiffany.delta-upgrade-tracker.plist
+cd ~/delta-upgrade-tracker
+source .venv/bin/activate
+python3 manual_check.py
 ```
 
-Check status:
+Open delta.com yourself, look up the trip, and type in the upgrade prices
+it shows when prompted. The script logs the prices and texts you via
+[ntfy.sh](https://ntfy.sh) if either leg is under your threshold. Nothing
+here ever touches delta.com automatically — it's just you browsing
+normally, so there's no bot-detection risk.
+
+## Why manual, not automated
+
+`delta_tracker.py` (using Playwright to scrape delta.com automatically)
+is still in this repo, but **don't rely on it** — delta.com's bot
+protection (Akamai) hard-blocks it, both from cloud hosting (GitHub
+Actions, Anthropic's cloud routines — instant block, since those are
+well-known datacenter IP ranges) and eventually from a home IP too, after
+repeated automated requests during testing triggered an "Access Denied"
+block that also affected this project's home connection for a while.
+Regular manual browsing was unaffected by that block — only the
+automated traffic pattern got flagged.
+
+This isn't a bug to fix — it's deliberate bot detection working as
+intended, and getting around it would require fingerprint/IP evasion
+techniques that are out of scope. `manual_check.py` sidesteps the whole
+problem by never automating the delta.com visit.
+
+## Setup (one-time)
 
 ```bash
-launchctl list | grep delta-upgrade-tracker
+cp .env.example .env
+# edit .env if trip details/thresholds change
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-Stop it:
+(`playwright install chromium` only needed if you ever want to try
+`delta_tracker.py` again — not needed for `manual_check.py`.)
 
-```bash
-launchctl unload ~/Library/LaunchAgents/com.tiffany.delta-upgrade-tracker.plist
-```
+## Alerts
 
-Logs from each scheduled run land in `logs/launchd.out.log` and
-`logs/launchd.err.log`. Current interval is set in the `.plist` file
-(`StartInterval`, in seconds).
+Push notifications via ntfy.sh — install the app and subscribe to the
+topic in `.env` (`NTFY_TOPIC`), or open `https://ntfy.sh/<topic>` in a
+browser tab and leave it open.
 
-**Your Mac needs to be powered on and you logged in** for scheduled checks
-to happen — launchd is per-user and doesn't run while the machine is off.
-If it's asleep with the lid closed, checks may be missed (not reliably
-caught up).
-
-## Important limitations
-
-- **Bot detection**: delta.com actively blocks automated browsers (Akamai).
-  This script will not try to solve CAPTCHAs or evade detection — it stops,
-  alerts you to check manually, and waits for the next scheduled run. It
-  already got a hard "Access Denied" once during testing after repeated
-  rapid checks — that's why the interval was backed off from 30 min to 4
-  hours. There's no guarantee it stays unblocked; if it keeps failing,
-  the fallback is checking delta.com yourself.
-- **Two-leg selection is unverified live.** `select_flight_segment()` in
-  `delta_tracker.py` tries to match each flight's segment on the itinerary
-  page by flight number, but this hasn't been confirmed against a real
-  two-flight screen yet (built while backing off from the block above).
-  The first real test is the next scheduled run — check
-  `logs/price_history.jsonl` afterward to confirm both `outbound` and
-  `return` entries show sane prices, not the same price for both.
-- **Alert de-duplication**: once a threshold is crossed for a given leg,
-  you won't get repeat notifications every check — it only re-alerts if
-  the price goes back above threshold and then drops below it again.
+Alerts are de-duplicated per leg per cabin: once triggered, you won't get
+repeat notifications until the price goes back above threshold and then
+drops below it again (tracked in `state.json`).

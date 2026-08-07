@@ -346,7 +346,7 @@ def stop_tracking(config: Config, state: dict) -> None:
     """Past the tracking window: notify once, unload the launchd job so it
     stops running itself, and mark state so we don't repeat this."""
     if not state.get("stopped"):
-        flights = " / ".join(f"DL{leg.flight_number} ({leg.flight_date})" for leg in config.legs)
+        flights = " / ".join(f"{leg.flight_number} ({leg.flight_date})" for leg in config.legs)
         send_alert(
             config,
             "Delta tracker: tracking window ended",
@@ -394,7 +394,7 @@ def check_thresholds(config: Config, state: dict, leg: Leg, prices: dict) -> Non
             send_alert(
                 config,
                 f"Delta One upgrade deal! ({leg.label})",
-                f"Delta One upgrade for DL{leg.flight_number} ({leg.flight_date}) "
+                f"Delta One upgrade for {leg.flight_number} ({leg.flight_date}) "
                 f"is now ${delta_one:.0f} — under your ${leg.threshold_delta_one:.0f} threshold.",
             )
             leg_state["alerted_delta_one"] = True
@@ -406,7 +406,7 @@ def check_thresholds(config: Config, state: dict, leg: Leg, prices: dict) -> Non
             send_alert(
                 config,
                 f"Premium Select upgrade deal! ({leg.label})",
-                f"Premium Select upgrade for DL{leg.flight_number} ({leg.flight_date}) "
+                f"Premium Select upgrade for {leg.flight_number} ({leg.flight_date}) "
                 f"is now ${premium:.0f} — under your ${leg.threshold_premium:.0f} threshold.",
             )
             leg_state["alerted_premium"] = True
@@ -447,7 +447,7 @@ def main() -> int:
                 if not select_flight_segment(page, leg.flight_number):
                     handle_blocked_or_failed(
                         config, state, page,
-                        f"could not reach upgrade screen for {leg.label} leg (DL{leg.flight_number})",
+                        f"could not reach upgrade screen for {leg.label} leg ({leg.flight_number})",
                     )
                     continue
 
@@ -460,7 +460,7 @@ def main() -> int:
                 }
                 log_price_check(config.log_file, record)
                 print(
-                    f"[{timestamp}] {leg.label} DL{leg.flight_number}: "
+                    f"[{timestamp}] {leg.label} {leg.flight_number}: "
                     f"Delta One {prices['Delta One']}  Premium Select {prices['Premium Select']}"
                 )
                 check_thresholds(config, state, leg, prices)

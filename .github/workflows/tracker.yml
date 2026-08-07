@@ -54,6 +54,15 @@ jobs:
       - name: Run tracker
         run: python3 delta_tracker.py
 
+      - name: Upload debug snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-snapshot
+          path: logs/debug/
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Save state back to repo
         if: always()
         run: |
